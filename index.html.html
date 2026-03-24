@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>履歴書作成アシスタント</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0ea5e9; /* Sky 500 */
+      --primary-dark: #0284c7; /* Sky 600 */
+    }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: #f8fafc;
+      color: #334155;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 印刷時のスタイル */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+      body {
+        background-color: white;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      /* 印刷レイアウト用の強制スタイル */
+      .resume-page {
+        width: 190mm; /* 余白を引いたA4幅 */
+        height: 277mm; /* 余白を引いたA4高さ */
+        box-sizing: border-box;
+        page-break-after: always; /* ページ区切り */
+        font-family: 'Noto Serif JP', serif;
+        font-size: 11px;
+        color: black;
+        overflow: hidden; /* はみ出しを防ぐ */
+      }
+      .resume-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .resume-table th, .resume-table td {
+        border: 1px solid black;
+        padding: 4px;
+        vertical-align: middle;
+        word-break: break-all;
+      }
+      .resume-header {
+        background-color: #f1f5f9;
+        font-weight: bold;
+        text-align: center;
+      }
+    }
+    
+    /* 入力フォーム用の装飾 */
+    .input-field {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 16px; /* スマホでの自動ズーム防止 */
+      transition: all 0.2s;
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    .btn {
+      padding: 12px 24px;
+      border-radius: 9999px;
+      font-weight: 500;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.2);
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+    .btn-outline {
+      border: 1px solid #cbd5e1;
+      background-color: white;
+      color: #64748b;
+    }
+    .btn-outline:hover {
+      border-color: #94a3b8;
+      color: #334155;
+    }
+    .ai-btn {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+    }
+    .ai-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(16, 185, 129, 0.4);
+    }
+    .ai-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    /* AIローディングアニメーション */
+    .spinner {
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 2px solid white;
+      width: 14px;
+      height: 14px;
+      -webkit-animation: spin 1s linear infinite;
+      animation: spin 1s linear infinite;
+    }
+    @-webkit-keyframes spin {
+      0% { -webkit-transform: rotate(0deg); }
+      100% { -webkit-transform: rotate(360deg); }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* プレビュー画面でのスケール表示 */
+    .preview-container {
+      overflow-x: auto;
+      background: #e2e8f0;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .preview-scaler {
+      transform: scale(0.65); /* スマホ画面で全体が見えるように縮小 */
+      transform-origin: top center;
+      width: 190mm; /* A4の幅 */
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      /* 印刷時の強制スタイルと同じ内容をあてることでプレビューと印刷を一致させる */
+      font-family: 'Noto Serif JP', serif;
+      font-size: 11px;
+      color: black;
+    }
+    @media (min-width: 768px) {
+      .preview-scaler {
+        transform: scale(0.9);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- 設定値・定数 ---
+    const apiKey = ""; // 実行環境から提供されるAPIキー（Canvas環境用）
+    const STEPS = ["基本情報", "学歴・職歴", "資格・免許", "志望動機など", "提出・印刷"];
+    
+    // アイコンコンポーネント
+    const Icons = {
+      User: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+      History: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+      Award: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+      PenTool: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>,
+      Printer: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+      Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+      Save: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+      Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+      Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
+      Wand: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>,
+      Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+      Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+    };
+
+    // 初期データ
+    const emptyHistory = { year: "", month: "", event: "" };
+    const initialForm = {
+      date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+      photo: null,
+      nameKana: "", name: "",
+      birthYear: "", birthMonth: "", birthDay: "", gender: "",
+      addressKana: "", postcode: "", address: "", phone: "", email: "",
+      altAddressKana: "", altPostcode: "", altAddress: "", altPhone: "",
+      education: [ { ...emptyHistory }, { ...emptyHistory } ],
+      work: [ { ...emptyHistory } ],
+      licenses: [ { ...emptyHistory }, { ...emptyHistory } ],
+      motivation: "",
+      skills: "",
+      favoriteSubject: "",
+      appeal: "",
+      wishes: ""
+    };
+
+    // --- メインコンポーネント ---
+    function App() {
+      // 生年月日用の選択肢
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 80 }, (_, i) => currentYear - i);
+      const months = Array.from({ length: 12 }, (_, i) => i + 1);
+      const days = Array.from({ length: 31 }, (_, i) => i + 1);
+
+      const [step, setStep] = useState(0);
+      const [form, setForm] = useState(initialForm);
+      const [geminiApiKey, setGeminiApiKey] = useState(apiKey);
+      const [showSettings, setShowSettings] = useState(false);
+      const [aiLoading, setAiLoading] = useState(false);
+
+      // ステート更新ヘルパー
+      const upd = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
+      const updArr = (field, index, subField, val) => {
+        setForm(prev => {
+          const newArr = [...prev[field]];
+          newArr[index] = { ...newArr[index], [subField]: val };
+          return { ...prev, [field]: newArr };
+        });
+      };
+      const addArr = (field) => setForm(prev => ({ ...prev, [field]: [...prev[field], { ...emptyHistory }] }));
+      const delArr = (field, index) => setForm(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
+
+      // Gemini API 呼び出し（指数バックオフ）
+      const callGeminiAI = async (prompt) => {
+        if (!geminiApiKey) {
+          alert("AI機能を使うには、設定（右上の歯車）からGemini APIキーを入力してください。\n※キーがなくても手動で履歴書は作成できます。");
+          return null;
+        }
+        setAiLoading(true);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${geminiApiKey}`;
+        const payload = {
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: { parts: [{ text: "あなたは留学生や専門学生を支援する就職サポートの専門家です。相手の言葉を尊重し、自然で誠実な日本語（です・ます調）に修正・生成してください。" }] }
+        };
+
+        const delays = [1000, 2000, 4000, 8000, 16000];
+        let resultText = null;
+
+        for (let i = 0; i < 5; i++) {
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            const data = await res.json();
+            resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (resultText) break;
+          } catch (error) {
+            console.error("API retry:", i + 1, error);
+            if (i === 4) {
+              alert("AIの呼び出しに失敗しました。時間をおいて再度お試しください。");
+            } else {
+              await new Promise(r => setTimeout(r, delays[i]));
+            }
+          }
+        }
+        setAiLoading(false);
+        return resultText;
+      };
+
+      // AI 生成ロジック
+      const generateText = async (field, label) => {
+        const eduStr = form.education.filter(e => e.event).map(e => e.event).join("、") || "介護・福祉分野を学習中";
+        const licStr = form.licenses.filter(l => l.event).map(l => l.event).join("、") || "特になし";
+        
+        let prompt = `以下の学生の情報をもとに、履歴書の「${label}」欄に書くための文章を作成してください。
+学生の学歴: ${eduStr}
+学生の資格: ${licStr}
+条件:
+- 誠実で意欲が伝わる内容にすること。
+- 文字数は約150〜200文字。
+- 自然な日本語（です・ます調）を使用すること。
+- そのまま履歴書に書き写せる文章のみを出力し、前置きや説明は含めないこと。`;
+
+        const text = await callGeminiAI(prompt);
+        if (text) upd(field, text.trim());
+      };
+
+      // AI 添削ロジック
+      const polishText = async (field, label) => {
+        const currentText = form[field];
+        if (!currentText) {
+          alert(`「${label}」の入力欄が空です。文章を書いてから添削ボタンを押してください。`);
+          return;
+        }
+        const prompt = `以下の履歴書の「${label}」欄の文章を添削し、より自然で、日本の介護・福祉施設の採用担当者に好印象を与える丁寧な日本語に修正してください。
+修正前の文章の意図を尊重し、長さを保ちつつ、誤字脱字や不自然な言い回しを直してください。
+そのまま履歴書に書き写せる文章のみを出力し、前置きや解説は含めないこと。
+
+【元の文章】
+${currentText}`;
+
+        const text = await callGeminiAI(prompt);
+        if (text) upd(field, text.trim());
+      };
+
+      // 印刷
+      const handlePrint = () => {
+        window.print();
+      };
+
+      // データ保存 (JSON)
+      const exportData = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(form));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `${form.name || "rirekisho"}_data.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+      };
+
+      // データ読込 (JSON)
+      const importData = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const json = JSON.parse(e.target.result);
+            if (json.date !== undefined) {
+              setForm(json);
+              alert("データを読み込みました！");
+              setStep(0); // 最初のステップに戻す
+            } else {
+              alert("対応していないファイル形式です。");
+            }
+          } catch (err) {
+            alert("データの読み込みに失敗しました。ファイルが正しいか確認してください。");
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      // 年齢計算
+      const calculateAge = () => {
+        if (!form.birthYear || !form.birthMonth || !form.birthDay) return "";
+        const birth = new Date(form.birthYear, form.birthMonth - 1, form.birthDay);
+        const target = new Date(); // 現在日付で計算
+        let age = target.getFullYear() - birth.getFullYear();
+        const m = target.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && target.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age >= 0 ? age : "";
+      };
+
+      // 写真アップロード
+      const handlePhoto = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => upd('photo', ev.target.result);
+        reader.readAsDataURL(file);
+      };
+
+      // UI レンダリングヘルパー
+      const FormField = ({ label, hint, req, children }) => (
+        <div className="mb-5">
+          <label className="block text-sm font-bold mb-1 text-slate-700">
+            {label} {req && <span className="text-red-500 ml-1 text-xs font-normal">必須</span>}
+          </label>
+          {hint && <p className="text-xs text-slate-500 mb-2">{hint}</p>}
+          {children}
+        </div>
+      );
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* --- Header (非印刷) --- */}
+          <header className="bg-white shadow-sm sticky top-0 z-10 no-print">
+            <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+              <div>
+                <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <span className="text-primary text-xl">📝</span> 履歴書アシスタント
+                </h1>
+                <p className="text-xs text-slate-500">スマホで簡単・きれいな履歴書作成</p>
+              </div>
+              <button 
+                onClick={() => setShowSettings(!showSettings)} 
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                title="設定"
+              >
+                <Icons.Settings />
+              </button>
+            </div>
+            
+            {/* ステップナビゲーション */}
+            <div className="bg-slate-50 border-b overflow-x-auto">
+              <div className="max-w-4xl mx-auto px-4 flex">
+                {STEPS.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setStep(i)}
+                    className={`whitespace-nowrap flex-1 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${
+                      step === i ? "border-primary text-primary" : 
+                      step > i ? "border-slate-300 text-slate-600" : "border-transparent text-slate-400"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${
+                        step === i ? "bg-primary text-white" : 
+                        step > i ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-400"
+                      }`}>
+                        {step > i ? "✓" : i + 1}
+                      </span>
+                      <span className="hidden sm:inline">{s}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </header>
+
+          {/* --- Settings Modal --- */}
+          {showSettings && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 no-print">
+              <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Icons.Settings /> 設定
+                </h2>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">AI機能用 Gemini APIキー</label>
+                  <p className="text-xs text-slate-500 mb-2">※教員から指定された場合に入力してください。空欄でも手動で履歴書は作れます。</p>
+                  <input 
+                    type="password" 
+                    value={geminiApiKey} 
+                    onChange={e => setGeminiApiKey(e.target.value)}
+                    className="input-field"
+                    placeholder="AI API Key"
+                  />
+                </div>
+                <div className="flex justify-end mt-6">
+                  <button onClick={() => setShowSettings(false)} className="btn btn-primary px-6 py-2">閉じる</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --- Main Content (非印刷) --- */}
+          <main className="flex-1 max-w-2xl mx-auto w-full p-4 sm:p-6 pb-24 no-print">
+            
+            {/* ▽ STEP 1: 基本情報 ▽ */}
+            {step === 0 && (
+              <div className="animate-fade-in">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6 mb-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b flex items-center gap-2">
+                    <Icons.User /> 基本情報
+                  </h2>
+                  
+                  <div className="flex flex-col sm:flex-row gap-6 mb-6">
+                    <div className="w-full sm:w-1/3 flex flex-col items-center">
+                      <label className="block text-sm font-bold mb-2 text-slate-700 text-center w-full">証明写真</label>
+                      <label className="w-28 h-36 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors overflow-hidden relative group">
+                        {form.photo ? (
+                          <img src={form.photo} alt="写真" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-center p-2">
+                            <span className="text-2xl mb-1 block">📷</span>
+                            <span className="text-[10px] text-slate-500">タップして<br/>写真を選ぶ</span>
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+                      </label>
+                      <p className="text-[10px] text-slate-400 mt-2 text-center">縦4cm×横3cm<br/>無地背景</p>
+                    </div>
+
+                    <div className="w-full sm:w-2/3 space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold mb-1 text-slate-700">ふりがな <span className="text-xs text-slate-500 font-normal">（ひらがな）</span></label>
+                        <input type="text" value={form.nameKana} onChange={e => upd('nameKana', e.target.value)} className="input-field py-2" placeholder="例: やまだ たろう" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold mb-1 text-slate-700">氏名</label>
+                        <input type="text" value={form.name} onChange={e => upd('name', e.target.value)} className="input-field py-2" placeholder="例: 山田 太郎" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <FormField label="生年月日" hint="年(西暦)">
+                      <select value={form.birthYear} onChange={e => upd('birthYear', e.target.value)} className="input-field py-2 bg-white">
+                        <option value="">--</option>
+                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </FormField>
+                    <FormField label="&nbsp;" hint="月">
+                      <select value={form.birthMonth} onChange={e => upd('birthMonth', e.target.value)} className="input-field py-2 bg-white">
+                        <option value="">--</option>
+                        {months.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </FormField>
+                    <FormField label="&nbsp;" hint="日">
+                      <select value={form.birthDay} onChange={e => upd('birthDay', e.target.value)} className="input-field py-2 bg-white">
+                        <option value="">--</option>
+                        {days.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </FormField>
+                  </div>
+
+                  <div className="mb-6 bg-slate-50 p-3 rounded-lg flex items-center gap-4 text-sm">
+                    <span className="font-bold">満年齢:</span>
+                    <span className="text-lg text-primary font-bold">{calculateAge()} {calculateAge() !== "" ? "歳" : ""}</span>
+                  </div>
+
+                  <FormField label="性別" hint="※記載は任意です。未記載でも構いません。">
+                    <div className="flex gap-4">
+                      {['男性', '女性', 'その他', ''].map(g => (
+                        <label key={g} className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="gender" value={g} checked={form.gender === g} onChange={e => upd('gender', e.target.value)} className="w-4 h-4 text-primary accent-primary" />
+                          <span>{g || '未記載'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </FormField>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6 mb-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b">現住所・連絡先</h2>
+                  
+                  <FormField label="ふりがな" hint="いま住んでいるところの ふりがな">
+                    <input type="text" value={form.addressKana} onChange={e => upd('addressKana', e.target.value)} className="input-field" placeholder="おおさかふ おおさかし..." />
+                  </FormField>
+                  
+                  <div className="flex gap-3 mb-5">
+                    <div className="w-1/3">
+                      <label className="block text-sm font-bold mb-1 text-slate-700">郵便番号</label>
+                      <input type="text" value={form.postcode} onChange={e => upd('postcode', e.target.value)} className="input-field" placeholder="530-0000" />
+                    </div>
+                    <div className="w-2/3">
+                      <label className="block text-sm font-bold mb-1 text-slate-700">現住所</label>
+                      <input type="text" value={form.address} onChange={e => upd('address', e.target.value)} className="input-field" placeholder="大阪府大阪市〇〇区..." />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField label="電話番号" hint="携帯電話など">
+                      <input type="tel" value={form.phone} onChange={e => upd('phone', e.target.value)} className="input-field" placeholder="090-0000-0000" />
+                    </FormField>
+                    <FormField label="E-mail">
+                      <input type="email" value={form.email} onChange={e => upd('email', e.target.value)} className="input-field" placeholder="email@example.com" />
+                    </FormField>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-2 pb-2 border-b">連絡先（現住所以外）</h2>
+                  <p className="text-xs text-slate-500 mb-4">※ 現住所と異なる場所に連絡を希望する場合のみ記入してください。実家など。</p>
+                  
+                  <FormField label="ふりがな">
+                    <input type="text" value={form.altAddressKana} onChange={e => upd('altAddressKana', e.target.value)} className="input-field" />
+                  </FormField>
+                  
+                  <div className="flex gap-3 mb-5">
+                    <div className="w-1/3">
+                      <label className="block text-sm font-bold mb-1 text-slate-700">郵便番号</label>
+                      <input type="text" value={form.altPostcode} onChange={e => upd('altPostcode', e.target.value)} className="input-field" />
+                    </div>
+                    <div className="w-2/3">
+                      <label className="block text-sm font-bold mb-1 text-slate-700">連絡先住所</label>
+                      <input type="text" value={form.altAddress} onChange={e => upd('altAddress', e.target.value)} className="input-field" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField label="電話番号">
+                      <input type="tel" value={form.altPhone} onChange={e => upd('altPhone', e.target.value)} className="input-field" />
+                    </FormField>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ▽ STEP 2: 学歴・職歴 ▽ */}
+            {step === 1 && (
+              <div className="animate-fade-in">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6 mb-6">
+                  <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icons.History /> 学歴
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">※ 中学校卒業から順番に書いてください。<br/>（例：〇〇市立〇〇中学校 卒業、〇〇日本語学校 入学 など）</p>
+
+                  <div className="space-y-3">
+                    {form.education.map((item, index) => (
+                      <div key={`edu-${index}`} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="w-20">
+                          <input type="text" inputMode="numeric" maxLength="4" value={item.year} onChange={e => updArr('education', index, 'year', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="2021" />
+                          <div className="text-[10px] text-center text-slate-400 mt-1">年(西暦)</div>
+                        </div>
+                        <div className="w-12">
+                          <input type="text" inputMode="numeric" maxLength="2" value={item.month} onChange={e => updArr('education', index, 'month', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="3" />
+                          <div className="text-[10px] text-center text-slate-400 mt-1">月</div>
+                        </div>
+                        <div className="flex-1">
+                          <input type="text" value={item.event} onChange={e => updArr('education', index, 'event', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm" placeholder="〇〇中学校 卒業" />
+                          <div className="text-[10px] text-slate-400 mt-1 pl-1">内容</div>
+                        </div>
+                        <button onClick={() => delArr('education', index)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded" title="削除">
+                          <Icons.Trash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => addArr('education')} className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:border-primary hover:text-primary transition-colors flex justify-center items-center gap-2 font-medium text-sm">
+                    <Icons.Plus /> 学歴を追加する
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icons.History /> 職歴
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">※ アルバイトや就業経験があれば書きます。ない場合は1行目に「なし」とだけ書きます。</p>
+
+                  <div className="space-y-3">
+                    {form.work.map((item, index) => (
+                      <div key={`work-${index}`} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="w-20">
+                          <input type="text" inputMode="numeric" maxLength="4" value={item.year} onChange={e => updArr('work', index, 'year', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="2024" />
+                        </div>
+                        <div className="w-12">
+                          <input type="text" inputMode="numeric" maxLength="2" value={item.month} onChange={e => updArr('work', index, 'month', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="4" />
+                        </div>
+                        <div className="flex-1">
+                          <input type="text" value={item.event} onChange={e => updArr('work', index, 'event', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm" placeholder="株式会社〇〇 入社" />
+                        </div>
+                        <button onClick={() => delArr('work', index)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                          <Icons.Trash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => addArr('work')} className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:border-primary hover:text-primary transition-colors flex justify-center items-center gap-2 font-medium text-sm">
+                    <Icons.Plus /> 職歴を追加する
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ▽ STEP 3: 資格・免許 ▽ */}
+            {step === 2 && (
+              <div className="animate-fade-in">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icons.Award /> 資格・免許
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">
+                    ※ 取得した資格や、取得見込みの資格を書いてください。<br/>
+                    （例：普通自動車第一種運転免許 取得、日本語能力試験 N2 合格、介護福祉士 取得見込 など）
+                  </p>
+
+                  <div className="space-y-3">
+                    {form.licenses.map((item, index) => (
+                      <div key={`lic-${index}`} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="w-20">
+                          <input type="text" inputMode="numeric" maxLength="4" value={item.year} onChange={e => updArr('licenses', index, 'year', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="2025" />
+                          <div className="text-[10px] text-center text-slate-400 mt-1">年(西暦)</div>
+                        </div>
+                        <div className="w-12">
+                          <input type="text" inputMode="numeric" maxLength="2" value={item.month} onChange={e => updArr('licenses', index, 'month', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm text-center" placeholder="3" />
+                          <div className="text-[10px] text-center text-slate-400 mt-1">月</div>
+                        </div>
+                        <div className="flex-1">
+                          <input type="text" value={item.event} onChange={e => updArr('licenses', index, 'event', e.target.value)} className="w-full p-2 border border-slate-300 rounded text-sm" placeholder="介護職員初任者研修 修了" />
+                          <div className="text-[10px] text-slate-400 mt-1 pl-1">資格名 + 取得/合格/修了 など</div>
+                        </div>
+                        <button onClick={() => delArr('licenses', index)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                          <Icons.Trash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => addArr('licenses')} className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:border-primary hover:text-primary transition-colors flex justify-center items-center gap-2 font-medium text-sm">
+                    <Icons.Plus /> 資格を追加する
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ▽ STEP 4: 志望動機など ▽ */}
+            {step === 3 && (
+              <div className="animate-fade-in space-y-6">
+                
+                {/* 志望動機 */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icons.PenTool /> 志望の動機
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">なぜこの施設（会社）で働きたいと思ったか、自分の経験や学んだことをどう活かしたいかを書きます。</p>
+                  
+                  <textarea 
+                    value={form.motivation} 
+                    onChange={e => upd('motivation', e.target.value)}
+                    className="input-field min-h-[120px] mb-3 leading-relaxed"
+                    placeholder="貴施設の「〇〇」という理念に共感し、志望いたしました。専門学校では介護の技術だけでなく、利用者様に寄り添う心を学びました。..."
+                  />
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button onClick={() => generateText('motivation', '志望の動機')} disabled={aiLoading} className="ai-btn flex items-center gap-1">
+                      {aiLoading ? <div className="spinner"></div> : <Icons.Sparkles />} AIで下書きを作る
+                    </button>
+                    <button onClick={() => polishText('motivation', '志望の動機')} disabled={aiLoading} className="ai-btn flex items-center gap-1" style={{background: 'linear-gradient(135deg, #f59e0b, #d97706)'}}>
+                      {aiLoading ? <div className="spinner"></div> : <Icons.Wand />} 文章をきれいに直す
+                    </button>
+                  </div>
+                </div>
+
+                {/* 特技・好きな学科 */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b">特技・好きな学科</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">特技 <span className="text-xs font-normal text-slate-500">（得意なこと）</span></label>
+                      <input type="text" value={form.skills} onChange={e => upd('skills', e.target.value)} className="input-field" placeholder="例：料理、人の話を丁寧に聞くこと、母国語と日本語の通訳" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">好きな学科 <span className="text-xs font-normal text-slate-500">（得意な授業）</span></label>
+                      <input type="text" value={form.favoriteSubject} onChange={e => upd('favoriteSubject', e.target.value)} className="input-field" placeholder="例：生活支援技術、コミュニケーション技術" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* アピールポイント */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icons.PenTool /> アピールポイント
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">自分の長所や、仕事でがんばりたいことを書きます。</p>
+                  
+                  <textarea 
+                    value={form.appeal} 
+                    onChange={e => upd('appeal', e.target.value)}
+                    className="input-field min-h-[100px] mb-3 leading-relaxed"
+                    placeholder="私の長所は、いつも笑顔で明るく挨拶ができることです。..."
+                  />
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button onClick={() => generateText('appeal', 'アピールポイント')} disabled={aiLoading} className="ai-btn flex items-center gap-1">
+                      {aiLoading ? <div className="spinner"></div> : <Icons.Sparkles />} AIで下書きを作る
+                    </button>
+                    <button onClick={() => polishText('appeal', 'アピールポイント')} disabled={aiLoading} className="ai-btn flex items-center gap-1" style={{background: 'linear-gradient(135deg, #f59e0b, #d97706)'}}>
+                      {aiLoading ? <div className="spinner"></div> : <Icons.Wand />} 文章を直す
+                    </button>
+                  </div>
+                </div>
+
+                {/* 本人希望記入欄 */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 sm:p-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b">本人希望記入欄</h2>
+                  <p className="text-xs text-slate-500 mb-3">特に希望がない場合は、「貴社の規定に従います。」と書くのが一般的です。</p>
+                  <textarea 
+                    value={form.wishes} 
+                    onChange={e => upd('wishes', e.target.value)}
+                    className="input-field min-h-[80px]"
+                    placeholder="貴施設の規定に従います。"
+                  />
+                </div>
+
+              </div>
+            )}
+
+            {/* ▽ STEP 5: 提出・印刷 ▽ */}
+            {step === 4 && (
+              <div className="animate-fade-in space-y-6">
+                
+                {/* アクションパネル */}
+                <div className="bg-gradient-to-r from-sky-50 to-indigo-50 rounded-xl shadow-sm border border-sky-100 p-5 sm:p-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Icons.Printer /> データの保存・提出・印刷
+                  </h2>
+                  <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                    おつかれさまでした！<br/>
+                    【学生の方】スマホで作ったデータを保存し、先生に送ってください。<br/>
+                    【先生の方】受け取ったデータを読み込んで、PCから印刷できます。
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 学生向け */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                      <div className="text-xs font-bold text-primary mb-3 bg-sky-50 inline-block px-2 py-1 rounded">学生向け</div>
+                      <button onClick={exportData} className="w-full btn btn-primary flex flex-col items-center py-3">
+                        <span className="flex items-center gap-2"><Icons.Save /> データを保存する</span>
+                        <span className="text-[10px] font-normal opacity-80 mt-1">（スマホ・PCにファイルが保存されます）</span>
+                      </button>
+                    </div>
+
+                    {/* 教員向け */}
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                      <div className="text-xs font-bold text-indigo-600 mb-3 bg-indigo-50 inline-block px-2 py-1 rounded">先生・印刷する方向け</div>
+                      <div className="space-y-3">
+                        <label className="w-full btn btn-outline flex items-center justify-center cursor-pointer border-dashed border-2 py-2">
+                          <Icons.Upload /> <span>データを読み込む</span>
+                          <input type="file" accept=".json" onChange={importData} className="hidden" />
+                        </label>
+                        <button onClick={handlePrint} className="w-full btn bg-slate-800 text-white hover:bg-slate-700 py-3">
+                          <Icons.Printer /> 印刷する / PDF保存
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* プレビューエリア（スマホでは縮小表示） */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-500 mb-2 pl-1">印刷プレビュー (A4 2ページ)</h3>
+                  <div className="preview-container">
+                    <div className="preview-scaler pointer-events-none">
+                      {/* ここに印刷用コンポーネントを描画 */}
+                      <ResumePrintLayout form={form} calculateAge={calculateAge} />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+          </main>
+
+          {/* --- Bottom Navigation (非印刷) --- */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 no-print z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div className="max-w-4xl mx-auto flex justify-between items-center px-2">
+              <button 
+                onClick={() => setStep(s => Math.max(0, s - 1))} 
+                className={`btn px-5 py-2 text-sm ${step === 0 ? 'invisible' : 'btn-outline'}`}
+              >
+                ← 戻る
+              </button>
+              
+              <div className="text-sm font-bold text-slate-500">
+                {step + 1} / 5
+              </div>
+
+              {step < 4 ? (
+                <button 
+                  onClick={() => {
+                    window.scrollTo(0,0);
+                    setStep(s => Math.min(4, s + 1));
+                  }} 
+                  className="btn btn-primary px-5 py-2 text-sm"
+                >
+                  次へ →
+                </button>
+              ) : (
+                <button onClick={handlePrint} className="btn bg-slate-800 text-white hover:bg-slate-700 px-5 py-2 text-sm">
+                  <Icons.Printer /> 印刷
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* --- 印刷用エリア (画面には表示されず、印刷時にのみ表示) --- */}
+          <div className="hidden print:block w-full bg-white text-black m-0 p-0">
+            <ResumePrintLayout form={form} calculateAge={calculateAge} />
+          </div>
+
+        </div>
+      );
+    }
+
+    // --- 印刷用 A4レイアウトコンポーネント ---
+    function ResumePrintLayout({ form, calculateAge }) {
+      // 学歴・職歴の行数を調整（最低20行程度確保）
+      const hRows = [];
+      form.education.forEach(e => { if(e.year || e.month || e.event) hRows.push({ ...e, type: '学歴' }); });
+      form.work.forEach(w => { if(w.year || w.month || w.event) hRows.push({ ...w, type: '職歴' }); });
+      const histRows = [...hRows];
+      while(histRows.length < 18) histRows.push({ year: "", month: "", event: "" });
+
+      // 資格の行数を調整（最低8行程度）
+      const licRows = form.licenses.filter(l => l.year || l.month || l.event);
+      while(licRows.length < 8) licRows.push({ year: "", month: "", event: "" });
+
+      const Td = ({ children, colSpan, rowSpan, className, style }) => (
+        <td colSpan={colSpan} rowSpan={rowSpan} className={`border border-black p-1.5 align-middle ${className || ''}`} style={style}>
+          {children}
+        </td>
+      );
+
+      return (
+        <div>
+          {/* ================= A4 1ページ目 ================= */}
+          <div className="resume-page p-[15mm] relative bg-white">
+            
+            <div className="text-center text-[22px] tracking-[1em] font-bold mb-2 mt-2">履　歴　書</div>
+            <div className="text-right text-[11px] mb-2">
+              {form.date ? `${form.date.split('/')[0]}年　${form.date.split('/')[1]}月　${form.date.split('/')[2]}日現在` : '　　　年　　月　　日現在'}
+            </div>
+
+            <table className="resume-table w-full mb-4">
+              <colgroup>
+                <col style={{width: '15%'}} />
+                <col style={{width: '5%'}} />
+                <col style={{width: '25%'}} />
+                <col style={{width: '15%'}} />
+                <col style={{width: '18%'}} />
+                <col style={{width: '22%'}} /> {/* 写真用カラム */}
+              </colgroup>
+              <tbody>
+                {/* ふりがな・写真 */}
+                <tr className="h-[20px]">
+                  <Td className="text-[10px] text-gray-600 align-top border-b-0 border-r-dashed">ふりがな</Td>
+                  <Td colSpan={4} className="text-[10px] align-top border-b-0">{form.nameKana}</Td>
+                  <Td rowSpan={4} className="text-center align-middle p-0 relative h-[50mm] w-[40mm]">
+                    {form.photo ? (
+                      <div className="absolute inset-1 border border-gray-300 bg-white flex items-center justify-center overflow-hidden">
+                        <img src={form.photo} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-1 border border-dashed border-gray-400 bg-gray-50 flex items-center justify-center">
+                        <div className="text-[10px] text-gray-400 leading-tight">
+                          写真をはる位置<br/>
+                          縦 36~40mm<br/>
+                          横 24~30mm
+                        </div>
+                      </div>
+                    )}
+                  </Td>
+                </tr>
+                {/* 氏名 */}
+                <tr className="h-[35px]">
+                  <Td className="align-middle border-t-0 border-r-dashed border-b-0 text-sm">氏 名</Td>
+                  <Td colSpan={4} className="align-middle text-xl tracking-widest border-t-0 border-b-0">
+                    <span className="ml-4">{form.name}</span>
+                  </Td>
+                </tr>
+                <tr className="h-[20px]">
+                  <Td colSpan={5} className="border-t-0 border-b-0"></Td>
+                </tr>
+                {/* 生年月日・性別 */}
+                <tr className="h-[25px]">
+                  <Td colSpan={3} className="align-middle border-t-0">
+                    {form.birthYear ? `${form.birthYear}年` : '　　　年'}　
+                    {form.birthMonth ? `${form.birthMonth}月` : '　　月'}　
+                    {form.birthDay ? `${form.birthDay}日生` : '　　日生'}　
+                    （満 {calculateAge()} 歳）
+                  </Td>
+                  <Td className="bg-gray-100 text-center text-[10px]">※性別</Td>
+                  <Td className="text-center">{form.gender}</Td>
+                </tr>
+
+                {/* 現住所ふりがな */}
+                <tr className="h-[20px]">
+                  <Td className="text-[10px] text-gray-600 align-top border-b-0 border-r-dashed">ふりがな</Td>
+                  <Td colSpan={4} className="text-[10px] align-top border-b-0">{form.addressKana}</Td>
+                  <Td rowSpan={2} className="align-top text-[10px]">
+                    <div className="border-b border-gray-400 pb-1 mb-1">電話</div>
+                    <div className="text-[12px]">{form.phone}</div>
+                  </Td>
+                </tr>
+                {/* 現住所 */}
+                <tr className="h-[40px]">
+                  <Td className="align-top border-t-0 border-r-dashed">現住所</Td>
+                  <Td colSpan={4} className="align-top border-t-0 text-[12px] leading-relaxed">
+                    〒 {form.postcode}<br/>
+                    {form.address}
+                  </Td>
+                </tr>
+
+                {/* 連絡先ふりがな */}
+                <tr className="h-[20px]">
+                  <Td className="text-[10px] text-gray-600 align-top border-b-0 border-r-dashed">ふりがな</Td>
+                  <Td colSpan={3} className="text-[10px] align-top border-b-0">{form.altAddressKana}</Td>
+                  <Td colSpan={2} rowSpan={2} className="align-top text-[10px]">
+                    <div className="border-b border-gray-400 pb-1 mb-1">E-mail</div>
+                    <div className="text-[11px] break-all">{form.email}</div>
+                  </Td>
+                </tr>
+                {/* 連絡先 */}
+                <tr className="h-[40px]">
+                  <Td className="align-top border-t-0 border-r-dashed text-[10px]">
+                    連絡先<br/>
+                    <span className="text-[8px] text-gray-500">(現住所以外に連絡を希望する場合のみ記入)</span>
+                  </Td>
+                  <Td colSpan={3} className="align-top border-t-0 text-[12px] leading-relaxed">
+                    {form.altPostcode ? `〒 ${form.altPostcode}` : ''}<br/>
+                    {form.altAddress}
+                  </Td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* 学歴・職歴テーブル */}
+            <table className="resume-table w-full">
+              <colgroup>
+                <col style={{width: '12%'}} />
+                <col style={{width: '8%'}} />
+                <col style={{width: '80%'}} />
+              </colgroup>
+              <tbody>
+                <tr className="h-[25px]">
+                  <Td className="text-center text-[10px] border-b-black bg-gray-50">年</Td>
+                  <Td className="text-center text-[10px] border-b-black bg-gray-50">月</Td>
+                  <Td className="text-center tracking-[1em] font-bold border-b-black bg-gray-50">学歴・職歴</Td>
+                </tr>
+                
+                {/* 学歴タイトル */}
+                {hRows.some(r => r.type === '学歴') && (
+                  <tr className="h-[24px]">
+                    <Td className="border-b-dashed"></Td>
+                    <Td className="border-b-dashed"></Td>
+                    <Td className="text-center tracking-[2em] font-bold border-b-dashed">学歴</Td>
+                  </tr>
+                )}
+                
+                {histRows.map((row, i) => {
+                  // 職歴の開始タイトルを挿入するロジック（簡易的）
+                  const isFirstWork = row.type === '職歴' && (i === 0 || histRows[i-1].type !== '職歴');
+                  
+                  return (
+                    <React.Fragment key={`hr-${i}`}>
+                      {isFirstWork && (
+                        <tr className="h-[24px]">
+                          <Td className="border-b-dashed"></Td>
+                          <Td className="border-b-dashed"></Td>
+                          <Td className="text-center tracking-[2em] font-bold border-b-dashed mt-2">職歴</Td>
+                        </tr>
+                      )}
+                      <tr className="h-[24px]">
+                        <Td className="text-center text-[11px] border-b-dashed">{row.year}</Td>
+                        <Td className="text-center text-[11px] border-b-dashed">{row.month}</Td>
+                        <Td className="text-[12px] border-b-dashed px-4">{row.event}</Td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ================= A4 2ページ目 ================= */}
+          <div className="resume-page p-[15mm] relative bg-white">
+            
+            {/* 資格・免許テーブル */}
+            <table className="resume-table w-full mb-4">
+              <colgroup>
+                <col style={{width: '12%'}} />
+                <col style={{width: '8%'}} />
+                <col style={{width: '80%'}} />
+              </colgroup>
+              <tbody>
+                <tr className="h-[25px]">
+                  <Td className="text-center text-[10px] border-b-black bg-gray-50">年</Td>
+                  <Td className="text-center text-[10px] border-b-black bg-gray-50">月</Td>
+                  <Td className="text-center tracking-[1em] font-bold border-b-black bg-gray-50">免許・資格</Td>
+                </tr>
+                {licRows.map((row, i) => (
+                  <tr key={`lr-${i}`} className="h-[25px]">
+                    <Td className="text-center text-[11px] border-b-dashed">{row.year}</Td>
+                    <Td className="text-center text-[11px] border-b-dashed">{row.month}</Td>
+                    <Td className="text-[12px] border-b-dashed px-4">{row.event}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* 志望動機・特技・アピールポイント枠 */}
+            <table className="resume-table w-full mb-4">
+              <tbody>
+                <tr>
+                  <Td className="p-0 border-black">
+                    <div className="h-[120mm] flex flex-col">
+                      <div className="px-2 py-1 font-bold bg-gray-50 border-b border-black text-[12px]">
+                        志望の動機、特技、好きな学科、アピールポイントなど
+                      </div>
+                      <div className="p-4 flex-1 text-[13px] leading-relaxed whitespace-pre-wrap">
+                        {/* 結合して表示 */}
+                        {form.motivation && <div>【志望の動機】<br/>{form.motivation}</div>}
+                        <div className="my-2 border-b border-dashed border-gray-300"></div>
+                        
+                        {(form.skills || form.favoriteSubject) && (
+                          <div className="mb-2">
+                            {form.skills && <div>【特技】 {form.skills}</div>}
+                            {form.favoriteSubject && <div>【好きな学科】 {form.favoriteSubject}</div>}
+                          </div>
+                        )}
+                        <div className="my-2 border-b border-dashed border-gray-300"></div>
+
+                        {form.appeal && <div>【アピールポイント】<br/>{form.appeal}</div>}
+                      </div>
+                    </div>
+                  </Td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* 本人希望記入欄 */}
+            <table className="resume-table w-full">
+              <tbody>
+                <tr>
+                  <Td className="p-0 border-black">
+                    <div className="h-[40mm] flex flex-col">
+                      <div className="px-2 py-1 font-bold bg-gray-50 border-b border-black text-[11px]">
+                        本人希望記入欄（特に給料・職種・勤務時間・勤務地・その他についての希望などがあれば記入）
+                      </div>
+                      <div className="p-4 flex-1 text-[13px] leading-relaxed whitespace-pre-wrap">
+                        {form.wishes}
+                      </div>
+                    </div>
+                  </Td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
